@@ -18,7 +18,7 @@ final class Wayback
 
 	public function __construct(?string $cachePath = null)
 	{
-		$cachePath = $cachePath ?? sys_get_temp_dir() . '/wayback';
+		$cachePath ??= sys_get_temp_dir() . '/wayback';
 		FileSystem::createDir($cachePath);
 		$this->cache = new Cache(new FileStorage($cachePath), 'wayback');
 	}
@@ -93,7 +93,7 @@ final class Wayback
 
 		$return = [];
 		foreach ($cache as $hostDomain => $firstSeen) {
-			$return[$hostDomain] = new \DateTimeImmutable($firstSeen);
+			$return[(string) $hostDomain] = new \DateTimeImmutable($firstSeen);
 		}
 
 		return $return;
@@ -128,10 +128,7 @@ final class Wayback
 
 			usort(
 				$cache,
-				static function (array $a, array $b): int
-				{
-					return $a[1] < $b[1] ? 1 : -1;
-				}
+				static fn(array $a, array $b): int => $a[1] < $b[1] ? 1 : -1
 			);
 
 			$this->cache->save(
