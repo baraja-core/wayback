@@ -1,7 +1,7 @@
 {
-	"name": "baraja-core/template",
-	"description": "This is a template package.",
-	"homepage": "https://github.com/baraja-core/template",
+	"name": "baraja-core/wayback",
+	"description": "Simple wayback interface.",
+	"homepage": "https://github.com/baraja-core/wayback",
 	"authors": [
 		{
 			"name": "Jan Barášek",
@@ -9,7 +9,10 @@
 		}
 	],
 	"require": {
-		"php": "^8.0"
+		"php": "^8.0",
+		"nette/utils": "^3.0",
+		"nette/caching": "^3.1",
+		"nette/http": "^3.0"
 	},
 	"require-dev": {
 		"tracy/tracy": "^2.8",
