@@ -57,7 +57,7 @@ final class Wayback
 	public function formatDateTime(\DateTimeInterface|string $dateTime): string
 	{
 		if (is_string($dateTime)) {
-			return $this->parseDateTime($dateTime);
+			$dateTime = $this->parseDateTime($dateTime);
 		}
 
 		return $this->convertDateTimeToUTC($dateTime)->format('YmdHis');
@@ -89,6 +89,9 @@ final class Wayback
 	{
 		$rawUrl = $this->getRawUrl($url, $dateTime);
 		$headers = get_headers($rawUrl, true);
+		if ($headers === false) {
+			throw new \InvalidArgumentException('URL "' . $url . '" is not callable.');
+		}
 		$httpCode = null;
 		if (isset($headers[0]) && preg_match('/^HTTP\/(?:\d+(?:\.\d+)?)?\s+(\d+)/', (string) $headers[0], $p) === 1) {
 			$httpCode = (int) $p[1];
