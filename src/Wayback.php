@@ -47,6 +47,98 @@ final class Wayback
 	}
 
 
+	public function convertDateTimeToUTC(\DateTimeInterface $dateTime): \DateTime
+	{
+		return (new \DateTime($dateTime->format('Y-m-d H:i:s')))
+			->setTimezone(new \DateTimeZone('UTC'));
+	}
+
+
+	public function formatDateTime(\DateTimeInterface|string $dateTime): string
+	{
+		if (is_string($dateTime)) {
+			return $this->parseDateTime($dateTime);
+		}
+
+		return $this->convertDateTimeToUTC($dateTime)->format('YmdHis');
+	}
+
+
+	public function parseDateTime(string $dateTime): \DateTimeImmutable
+	{
+		if (preg_match('/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:id_)?$/', $dateTime, $parser) === 1) {
+			assert(isset($parser[1], $parser[2], $parser[3], $parser[4], $parser[5], $parser[6]));
+
+			return new \DateTimeImmutable(
+				$parser[1] . '-' . $parser[2] . '-' . $parser[3]
+				. ' ' . $parser[4] . ':' . $parser[5] . ':' . $parser[6],
+				new \DateTimeZone('UTC'),
+			);
+		}
+		throw new \InvalidArgumentException('Haystack "' . $dateTime . '" is not valid Wayback datetime.');
+	}
+
+
+	public function getClosedArchivedFile(string $url, \DateTimeInterface|string $dateTime): ?string
+	{
+		return $this->getArchivedFile('http://web.archive.org/web/' . $this->formatDateTime($dateTime) . 'id_/' . $url);
+	}
+
+
+	public function getClosedArchivedDateTime(string $url, \DateTimeInterface|string $dateTime): ?string
+	{
+		$rawUrl = $this->getRawUrl($url, $dateTime);
+		$headers = get_headers($rawUrl, true);
+		$httpCode = null;
+		if (isset($headers[0]) && preg_match('/^HTTP\/(?:\d+(?:\.\d+)?)?\s+(\d+)/', (string) $headers[0], $p) === 1) {
+			$httpCode = (int) $p[1];
+		}
+		if ($httpCode === null) {
+			throw new \LogicException('Can not parse HTTP status code.' . "\n\n" . implode("\n", $headers));
+		} elseif ($httpCode === 200) { // ok
+			return $this->formatDateTime($dateTime);
+		} elseif ($httpCode >= 300 && $httpCode <= 399) { // redirect
+			if (
+				isset($headers['location'])
+				&& preg_match('/web\/(\d{14})/', (string) $headers['location'], $locationParser) === 1
+			) {
+				return $this->formatDateTime($locationParser[1] ?? '');
+			} else {
+				throw new \LogicException('Can not parse redirect location.');
+			}
+		} elseif ($httpCode >= 400 && $httpCode <= 499) { // file not found
+			return null;
+		} elseif ($httpCode >= 500 && $httpCode <= 599) { // server error
+			throw new \RuntimeException('Server error: ' . ($headers[0] ?? '') . "\n" . $rawUrl);
+		}
+
+		throw new \LogicException('Invalid response code, because "' . $httpCode . '" given.');
+	}
+
+
+	public function getArchivedFile(string $waybackUrl): ?string
+	{
+		$rawUrl = $this->getRawUrl($waybackUrl);
+		$key = 'raw-' . md5($rawUrl);
+		$cache = $this->cache->load($key);
+		if ($cache === null) {
+			try {
+				$cache = FileSystem::read($rawUrl);
+				$this->cache->save(
+					$key,
+					$cache,
+					[
+						Cache::EXPIRATION => '7 days',
+					]
+				);
+			} catch (\Throwable) {
+			}
+		}
+
+		return $cache;
+	}
+
+
 	/**
 	 * @return array<string, \DateTimeImmutable>
 	 */
@@ -112,6 +204,29 @@ final class Wayback
 	public function normalizeUrl(string $url): string
 	{
 		return 'https://' . preg_replace('/^(https?:)?(\/\/)?(www\.)?/', '', $url);
+	}
+
+
+	public function getRawUrl(string $url, \DateTimeInterface|string|null $dateTime = null): string
+	{
+		if (
+			preg_match(
+				'/^(?:https?)(:\/\/(?:www)?web\.archive\.org\/web\/)(\d+)(?:id_)?\/(.+)$/',
+				$url,
+				$parser
+			) === 1
+		) {
+			assert(isset($parser[1], $parser[2], $parser[3]));
+			if (Validators::isUrl($parser[3]) === false) {
+				throw new \InvalidArgumentException('Given Wayback machine URL does not contain mandatory URL.');
+			}
+
+			return 'https' . $parser[1] . $parser[2] . 'id_' . '/' . $parser[3];
+		} elseif ($dateTime !== null && Validators::isUrl($url)) {
+			return 'https://web.archive.org/web/' . $this->formatDateTime($dateTime) . 'id_/' . $url;
+		} else {
+			throw new \InvalidArgumentException('Given URL is not valid Wayback machine URL.');
+		}
 	}
 
 
