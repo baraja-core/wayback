@@ -33,9 +33,25 @@ $wayback->getSubdomains('baraja.cz');
 
 // Save now given URL to Wayback
 $wayback->saveUrl('https://baraja.cz');
+
+// Find nearest archived datetime
+$wayback->getClosedArchivedDateTime('https://baraja.cz/robots.txt', new \DateTime('2020-09-04'));
+
+// Find and download nearest archived file
+$wayback->getClosedArchivedFile('https://baraja.cz/robots.txt', new \DateTime('2020-09-04'));
+
+// Download specific file by wayback link
+$wayback->getArchivedFile('http://web.archive.org/web/20200923184117/https://baraja.cz/robots.txt');
 ```
 
 The return of all results from the Wayback Machine is subject to caching. The results are automatically cached on your file system.
+
+DateTime
+--------
+
+DateTime is stored in Wayback format (string). Wayback stores the date in the UTC timezone. This package converts datetime automatically.
+
+Example: Date `20050101143010` is `2005-01-01 14:30:10`.
 
 📄 License
 -----------
