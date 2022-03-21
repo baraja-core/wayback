@@ -132,7 +132,7 @@ final class Wayback
 					$cache,
 					[
 						Cache::EXPIRATION => '7 days',
-					]
+					],
 				);
 			} catch (\Throwable) {
 			}
@@ -154,7 +154,7 @@ final class Wayback
 			$api = FileSystem::read(
 				'http://web.archive.org/cdx/search/cdx?url='
 				. urlencode($domain)
-				. '&output=json&matchType=domain&limit=-10000'
+				. '&output=json&matchType=domain&limit=-10000',
 			);
 			$records = json_decode($api, true, 512, JSON_THROW_ON_ERROR);
 			unset($records[0]);
@@ -164,7 +164,7 @@ final class Wayback
 			foreach ($records as $record) {
 				$recordHost = (new Url($record[2] ?? ''))->getHost();
 				$date = new \DateTimeImmutable(
-					(string) preg_replace('/^(\d{4})(\d{2})(\d{2}).+$/', '$1-$2-$3', $record[1] ?? '')
+					(string) preg_replace('/^(\d{4})(\d{2})(\d{2}).+$/', '$1-$2-$3', $record[1] ?? ''),
 				);
 				if (
 					isset($hosts[$recordHost]) === false
@@ -216,7 +216,7 @@ final class Wayback
 			preg_match(
 				'/^(?:https?)(:\/\/(?:www)?web\.archive\.org\/web\/)(\d+)(?:id_)?\/(.+)$/',
 				$url,
-				$parser
+				$parser,
 			) === 1
 		) {
 			assert(isset($parser[1], $parser[2], $parser[3]));
@@ -254,7 +254,7 @@ final class Wayback
 				$cache,
 				[
 					Cache::EXPIRE => $cache === [] ? '10 minutes' : '3 days',
-				]
+				],
 			);
 		}
 
