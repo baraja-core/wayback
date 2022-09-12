@@ -60,7 +60,7 @@ final class Wayback
 		return $this->convertDateTimeToUTC(
 			is_string($dateTime)
 				? $this->parseDateTime($dateTime)
-				: $dateTime
+				: $dateTime,
 		)->format('YmdHis');
 	}
 
