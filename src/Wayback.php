@@ -29,9 +29,10 @@ final class Wayback
 	 */
 	public function getArchivedUrlsByHost(string $url): array
 	{
-		$urlEntity = new Url($this->normalizeUrl($url));
-
-		return $this->getArchivedUrls('https://' . $urlEntity->getDomain(5));
+		return $this->getArchivedUrls(sprintf(
+			'https://%s',
+			(new Url($this->normalizeUrl($url)))->getDomain(5),
+		));
 	}
 
 
@@ -56,26 +57,25 @@ final class Wayback
 
 	public function formatDateTime(\DateTimeInterface|string $dateTime): string
 	{
-		if (is_string($dateTime)) {
-			$dateTime = $this->parseDateTime($dateTime);
-		}
-
-		return $this->convertDateTimeToUTC($dateTime)->format('YmdHis');
+		return $this->convertDateTimeToUTC(
+			is_string($dateTime)
+				? $this->parseDateTime($dateTime)
+				: $dateTime
+		)->format('YmdHis');
 	}
 
 
 	public function parseDateTime(string $dateTime): \DateTimeImmutable
 	{
-		if (preg_match('/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:id_)?$/', $dateTime, $parser) === 1) {
-			assert(isset($parser[1], $parser[2], $parser[3], $parser[4], $parser[5], $parser[6]));
+		if (preg_match('/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:id_)?$/', $dateTime, $p) === 1) {
+			assert(isset($p[1], $p[2], $p[3], $p[4], $p[5], $p[6]));
 
 			return new \DateTimeImmutable(
-				$parser[1] . '-' . $parser[2] . '-' . $parser[3]
-				. ' ' . $parser[4] . ':' . $parser[5] . ':' . $parser[6],
+				sprintf('%s-%s-%s %s:%s:%s', $p[1], $p[2], $p[3], $p[4], $p[5], $p[6]),
 				new \DateTimeZone('UTC'),
 			);
 		}
-		throw new \InvalidArgumentException('Haystack "' . $dateTime . '" is not valid Wayback datetime.');
+		throw new \InvalidArgumentException(sprintf('Haystack "%s" is not valid Wayback datetime.', $dateTime));
 	}
 
 
@@ -90,7 +90,7 @@ final class Wayback
 		$rawUrl = $this->getRawUrl($url, $dateTime);
 		$headers = get_headers($rawUrl, true);
 		if ($headers === false) {
-			throw new \InvalidArgumentException('URL "' . $url . '" is not callable.');
+			throw new \InvalidArgumentException(sprintf('URL "%s" is not callable.', $url));
 		}
 		$httpCode = null;
 		if (isset($headers[0]) && preg_match('/^HTTP\/(?:\d+(?:\.\d+)?)?\s+(\d+)/', (string) $headers[0], $p) === 1) {
@@ -98,20 +98,23 @@ final class Wayback
 		}
 		if ($httpCode === null) {
 			throw new \LogicException('Can not parse HTTP status code.' . "\n\n" . implode("\n", $headers));
-		} elseif ($httpCode === 200) { // ok
+		}
+		if ($httpCode === 200) { // ok
 			return $this->formatDateTime($dateTime);
-		} elseif ($httpCode >= 300 && $httpCode <= 399) { // redirect
+		}
+		if ($httpCode >= 300 && $httpCode <= 399) { // redirect
 			if (
 				isset($headers['location'])
 				&& preg_match('/web\/(\d{14})/', (string) $headers['location'], $locationParser) === 1
 			) {
 				return $this->formatDateTime($locationParser[1] ?? '');
-			} else {
-				throw new \LogicException('Can not parse redirect location.');
 			}
-		} elseif ($httpCode >= 400 && $httpCode <= 499) { // file not found
+			throw new \LogicException('Can not parse redirect location.');
+		}
+		if ($httpCode >= 400 && $httpCode <= 499) { // file not found
 			return null;
-		} elseif ($httpCode >= 500 && $httpCode <= 599) { // server error
+		}
+		if ($httpCode >= 500 && $httpCode <= 599) { // server error
 			throw new \RuntimeException('Server error: ' . ($headers[0] ?? '') . "\n" . $rawUrl);
 		}
 
@@ -127,13 +130,7 @@ final class Wayback
 		if ($cache === null) {
 			try {
 				$cache = FileSystem::read($rawUrl);
-				$this->cache->save(
-					$key,
-					$cache,
-					[
-						Cache::EXPIRATION => '7 days',
-					],
-				);
+				$this->cache->save($key, $cache, [Cache::EXPIRATION => '7 days']);
 			} catch (\Throwable) {
 			}
 		}
@@ -174,13 +171,7 @@ final class Wayback
 			foreach ($hosts as $hostDomain => $firstSeen) {
 				$cache[$hostDomain] = $firstSeen->format('Y-m-d');
 			}
-			$this->cache->save(
-				'host-' . $domain,
-				$cache,
-				[
-					Cache::EXPIRE => '30 minutes',
-				],
-			);
+			$this->cache->save('host-' . $domain, $cache, [Cache::EXPIRE => '30 minutes']);
 		}
 
 		$return = [];
@@ -209,24 +200,18 @@ final class Wayback
 
 	public function getRawUrl(string $url, \DateTimeInterface|string|null $dateTime = null): string
 	{
-		if (
-			preg_match(
-				'/^(?:https?)(:\/\/(?:www)?web\.archive\.org\/web\/)(\d+)(?:id_)?\/(.+)$/',
-				$url,
-				$parser,
-			) === 1
-		) {
-			assert(isset($parser[1], $parser[2], $parser[3]));
-			if (Validators::isUrl($parser[3]) === false) {
+		if (preg_match('/^https?(:\/\/(?:www)?web\.archive\.org\/web\/)(\d+)(?:id_)?\/(.+)$/', $url, $p) === 1) {
+			assert(isset($p[1], $p[2], $p[3]));
+			if (Validators::isUrl($p[3]) === false) {
 				throw new \InvalidArgumentException('Given Wayback machine URL does not contain mandatory URL.');
 			}
 
-			return 'https' . $parser[1] . $parser[2] . 'id_' . '/' . $parser[3];
-		} elseif ($dateTime !== null && Validators::isUrl($url)) {
-			return 'https://web.archive.org/web/' . $this->formatDateTime($dateTime) . 'id_/' . $url;
-		} else {
-			throw new \InvalidArgumentException('Given URL is not valid Wayback machine URL.');
+			return sprintf('https%s%sid_/%s', $p[1], $p[2], $p[3]);
 		}
+		if ($dateTime !== null && Validators::isUrl($url)) {
+			return 'https://web.archive.org/web/' . $this->formatDateTime($dateTime) . 'id_/' . $url;
+		}
+		throw new \InvalidArgumentException('Given URL is not valid Wayback machine URL.');
 	}
 
 
