@@ -166,10 +166,7 @@ final class Wayback
 				$date = new \DateTimeImmutable(
 					(string) preg_replace('/^(\d{4})(\d{2})(\d{2}).+$/', '$1-$2-$3', $record[1] ?? ''),
 				);
-				if (
-					isset($hosts[$recordHost]) === false
-					|| (isset($hosts[$recordHost]) && $date < $hosts[$recordHost])
-				) {
+				if (isset($hosts[$recordHost]) === false || $date < $hosts[$recordHost]) {
 					$hosts[$recordHost] = $date;
 				}
 			}
